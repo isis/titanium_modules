@@ -9,6 +9,7 @@ package ti.map;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import  java.lang.Math;
 
 import org.appcelerator.kroll.KrollDict;
 import org.appcelerator.kroll.KrollProxy;
@@ -19,6 +20,7 @@ import org.appcelerator.titanium.view.TiUIFragment;
 
 import android.app.Activity;
 import android.support.v4.app.Fragment;
+import android.view.View;
 
 import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
@@ -410,17 +412,6 @@ public class TiUIMapView extends TiUIFragment implements GoogleMap.OnMarkerClick
 	@Override
     public void onInfoWindowClick (Marker marker) {
 		AnnotationProxy annoProxy = getProxyByMarker(marker);
-		/*if (selectedAnnotation == null) {
-			annoProxy.showInfo();
-			selectedAnnotation = annoProxy;
-		} else if (!selectedAnnotation.equals(annoProxy)) {
-			selectedAnnotation.hideInfo();
-			annoProxy.showInfo();
-			selectedAnnotation = annoProxy;
-		} else {
-			selectedAnnotation.hideInfo();
-			selectedAnnotation = null;
-		}*/
 		fireInfoWindowClickEvent(marker, annoProxy, annoProxy);
     }	
     
@@ -444,16 +435,64 @@ public class TiUIMapView extends TiUIFragment implements GoogleMap.OnMarkerClick
 				preLayout = false;
 			}
 		} else if (proxy != null) {
+			double[] delta = zoom2delta(position.target.latitude,position.target.longitude, position.zoom );
 			KrollDict d = new KrollDict();
 			d.put(TiC.PROPERTY_LATITUDE, position.target.latitude);
 			d.put(TiC.PROPERTY_LONGITUDE, position.target.longitude);
 			d.put("zoom", position.zoom);
 			d.put("tilt", position.tilt);
 			d.put("bearing", position.bearing);
+			d.put(TiC.PROPERTY_LATITUDE_DELTA,delta[0]);
+			d.put(TiC.PROPERTY_LONGITUDE_DELTA,delta[1]);
 			d.put(TiC.PROPERTY_SOURCE, proxy);
 			proxy.fireEvent(TiC.EVENT_REGION_CHANGED, d);
 		}
 		
 	}
+	
+	final double  MERCATOR_OFFSET = 268435456;
+	final double  MERCATOR_RADIUS = 85445659.44705395;
+
+
+	protected double longitude2PX(double longitude)
+    {
+        return Math.round(MERCATOR_OFFSET + MERCATOR_RADIUS * longitude * Math.PI / 180.0);
+    }
+
+	protected double latitude2PY(double latitude)
+    {
+        return Math.round(MERCATOR_OFFSET - MERCATOR_RADIUS * Math.log((1 + Math.sin(latitude * Math.PI / 180.0)) / (1 - Math.sin(latitude * Math.PI / 180.0))) / 2.0);
+    }
+	protected double PX2Longitude(double px)
+    {
+        return ((Math.round(px) - MERCATOR_OFFSET) / MERCATOR_RADIUS) * 180.0 / Math.PI;
+    }
+
+	protected double PY2Latitude(double py)
+    {
+        return (Math.PI / 2.0 - 2.0 * Math.atan(Math.exp((Math.round(py) - MERCATOR_OFFSET) / MERCATOR_RADIUS))) * 180.0 / Math.PI;
+    }
+
+
+	protected double[] zoom2delta(double lat, double lng, double zoomLevel) {
+        View v = getNativeView();
+        double longitudeDelta = 0;
+        double latitudeDelta = 0;
+        if (v != null) {
+            double centerPX = longitude2PX(lng);
+            double centerPY = latitude2PY(lat);
+            double zoomScale = Math.pow(2, 20 - zoomLevel);
+            double scaledMapWidth = v.getWidth () * zoomScale;
+            double scaledMapHeight = v.getHeight () * zoomScale;
+            double topLeftPX = centerPX - (scaledMapWidth / 2);
+            double topLeftPY = centerPY - (scaledMapHeight / 2);
+            longitudeDelta = PX2Longitude(topLeftPX + scaledMapWidth) - PX2Longitude(topLeftPX);
+            latitudeDelta = -1 * (PY2Latitude(topLeftPY + scaledMapHeight) - PY2Latitude(topLeftPY));
+        }
+        double[] r = new double[2];
+        r[0] = latitudeDelta;
+        r[1] = longitudeDelta;
+        return r;
+    }
 
 }
