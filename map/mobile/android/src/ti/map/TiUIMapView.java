@@ -30,7 +30,8 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.Marker;
 
-public class TiUIMapView extends TiUIFragment implements GoogleMap.OnMarkerClickListener, GoogleMap.OnMapClickListener, GoogleMap.OnCameraChangeListener{
+public class TiUIMapView extends TiUIFragment implements GoogleMap.OnMarkerClickListener, GoogleMap.OnMapClickListener, GoogleMap.OnCameraChangeListener, GoogleMap.OnInfoWindowClickListener
+{
 
 	private GoogleMap map;
 	protected boolean animate = false;
@@ -73,6 +74,7 @@ public class TiUIMapView extends TiUIFragment implements GoogleMap.OnMarkerClick
 		map.setOnMarkerClickListener(this);
 		map.setOnMapClickListener(this);
 		map.setOnCameraChangeListener(this);
+		map.setOnInfoWindowClickListener(this);
 		((ViewProxy)proxy).clearPreloadObjects();
 		proxy.fireEvent(TiC.EVENT_COMPLETE, null);
 	}
@@ -361,6 +363,19 @@ public class TiUIMapView extends TiUIFragment implements GoogleMap.OnMarkerClick
 		d.put(TiC.EVENT_PROPERTY_CLICKSOURCE, clickSource);
 		proxy.fireEvent(TiC.EVENT_CLICK, d);
 	}
+	public void fireInfoWindowClickEvent(Marker marker, AnnotationProxy annoProxy, Object clickSource) {
+		KrollDict d = new KrollDict();
+		d.put(TiC.PROPERTY_TITLE, marker.getTitle());
+		d.put(TiC.PROPERTY_SUBTITLE, marker.getSnippet());
+		d.put(TiC.PROPERTY_LATITUDE, marker.getPosition().latitude);
+		d.put(TiC.PROPERTY_LONGITUDE, marker.getPosition().longitude);
+		d.put(TiC.PROPERTY_ANNOTATION, annoProxy);
+		d.put(MapModule.PROPERTY_MAP, proxy);
+		d.put(TiC.PROPERTY_TYPE, TiC.EVENT_CLICK);
+		d.put(TiC.PROPERTY_SOURCE, proxy);
+		d.put(TiC.EVENT_PROPERTY_CLICKSOURCE, clickSource);
+		proxy.fireEvent("infowindowclick", d);
+	}
 
 	@Override
 	public boolean onMarkerClick(Marker marker) {
@@ -393,6 +408,23 @@ public class TiUIMapView extends TiUIFragment implements GoogleMap.OnMarkerClick
 	}
 	
 	@Override
+    public void onInfoWindowClick (Marker marker) {
+		AnnotationProxy annoProxy = getProxyByMarker(marker);
+		/*if (selectedAnnotation == null) {
+			annoProxy.showInfo();
+			selectedAnnotation = annoProxy;
+		} else if (!selectedAnnotation.equals(annoProxy)) {
+			selectedAnnotation.hideInfo();
+			annoProxy.showInfo();
+			selectedAnnotation = annoProxy;
+		} else {
+			selectedAnnotation.hideInfo();
+			selectedAnnotation = null;
+		}*/
+		fireInfoWindowClickEvent(marker, annoProxy, annoProxy);
+    }	
+    
+	@Override
 	public void release() {
 		selectedAnnotation = null;
 		map.clear();
@@ -415,6 +447,9 @@ public class TiUIMapView extends TiUIFragment implements GoogleMap.OnMarkerClick
 			KrollDict d = new KrollDict();
 			d.put(TiC.PROPERTY_LATITUDE, position.target.latitude);
 			d.put(TiC.PROPERTY_LONGITUDE, position.target.longitude);
+			d.put("zoom", position.zoom);
+			d.put("tilt", position.tilt);
+			d.put("bearing", position.bearing);
 			d.put(TiC.PROPERTY_SOURCE, proxy);
 			proxy.fireEvent(TiC.EVENT_REGION_CHANGED, d);
 		}
